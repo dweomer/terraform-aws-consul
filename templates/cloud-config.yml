@@ -1,0 +1,50 @@
+#cloud-config
+write_files:
+  - path: /etc/consul.d/common.json
+    owner: "root:root"
+    permissions: "0644"
+    content: |
+      {
+          "datacenter" : "${CONSUL_DATACENTER}",
+          "domain"     : "${CONSUL_DOMAIN}.",
+          "retry_join" : [ "provider=aws tag_key=${CONSUL_RETRY_JOIN_KEY} tag_value=${CONSUL_RETRY_JOIN_VALUE}" ]
+      }
+  - path: /etc/docker/daemon.json
+    owner: "root:root"
+    permissions: "0644"
+    content: |
+      {
+          "bip" : "172.16.0.1/16"
+      }
+
+rancher:
+  environment:
+    CONSUL_BRIDGE_ADDR: ${CONSUL_BRIDGE_ADDR}
+    CONSUL_BRIDGE_HOST: ${CONSUL_BRIDGE_HOST}
+    CONSUL_BRIDGE_NAME: ${CONSUL_BRIDGE_NAME}
+    CONSUL_DATACENTER: ${CONSUL_DATACENTER}
+    CONSUL_DOMAIN: ${CONSUL_DOMAIN}
+    CONSUL_RETRY_JOIN_KEY: ${CONSUL_RETRY_JOIN_KEY}
+    CONSUL_RETRY_JOIN_VALUE: ${CONSUL_RETRY_JOIN_VALUE}
+    CONSUL_VERSION: ${CONSUL_VERSION}
+  network:
+    interfaces:
+      ${CONSUL_BRIDGE_NAME}:
+        bridge: true
+        dhcp: false
+    post_cmds:
+      - ip addr add ${CONSUL_BRIDGE_ADDR}/32 dev ${CONSUL_BRIDGE_NAME}
+  services:
+    consul:
+      environment:
+        CONSUL_BIND_INTERFACE: eth0
+        CONSUL_LOCAL_CONFIG: '${CONSUL_LOCAL_CONFIG}'
+      command: agent -client 0.0.0.0
+      container_name: ${CONSUL_BRIDGE_HOST}
+      image: consul:${CONSUL_VERSION}
+      net: host
+      restart: unless-stopped
+      volumes:
+        - "/etc/consul.d:/consul/config:rw"
+        - "/var/lib/consul:/consul/data:rw"
+        - "/var/run/docker.sock:/var/run/docker.sock:rw"

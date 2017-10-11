@@ -7,7 +7,7 @@ write_files:
       {
           "datacenter" : "${CONSUL_DATACENTER}",
           "domain"     : "${CONSUL_DOMAIN}.",
-          "retry_join" : [ "provider=aws tag_key=${CONSUL_RETRY_JOIN_KEY} tag_value=${CONSUL_RETRY_JOIN_VALUE}" ]
+          "retry_join" : [ "provider=aws tag_key=${CONSUL_LAN_DISCOVERY_KEY} tag_value=${CONSUL_LAN_DISCOVERY_VALUE}" ]
       }
   - path: /etc/docker/daemon.json
     owner: "root:root"
@@ -24,8 +24,8 @@ rancher:
     CONSUL_BRIDGE_NAME: ${CONSUL_BRIDGE_NAME}
     CONSUL_DATACENTER: ${CONSUL_DATACENTER}
     CONSUL_DOMAIN: ${CONSUL_DOMAIN}
-    CONSUL_RETRY_JOIN_KEY: ${CONSUL_RETRY_JOIN_KEY}
-    CONSUL_RETRY_JOIN_VALUE: ${CONSUL_RETRY_JOIN_VALUE}
+    CONSUL_LAN_DISCOVERY_KEY: ${CONSUL_LAN_DISCOVERY_KEY}
+    CONSUL_LAN_DISCOVERY_VALUE: ${CONSUL_LAN_DISCOVERY_VALUE}
     CONSUL_VERSION: ${CONSUL_VERSION}
   network:
     interfaces:

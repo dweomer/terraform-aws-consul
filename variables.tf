@@ -1,8 +1,3 @@
-variable "cidr_block" {
-  description = "CIDR Block"
-  default     = "172.31.0.0/16"
-}
-
 variable "consul_bridge_addr" {
   default = "169.254.127.127"
 }
@@ -19,11 +14,11 @@ variable "consul_datacenter" {
   default = ""
 }
 
-variable "consul_retry_join_key" {
+variable "CONSUL_LAN_DISCOVERY_key" {
   default = ""
 }
 
-variable "consul_retry_join_value" {
+variable "CONSUL_LAN_DISCOVERY_value" {
   default = ""
 }
 
@@ -86,6 +81,11 @@ variable "stage" {
 variable "subnet_bits" {
   description = "Subnet Prefix Bits"
   default     = 6
+}
+
+variable "supernet" {
+  description = "CIDR Block"
+  default     = "172.31.0.0/16"
 }
 
 variable "zones" {

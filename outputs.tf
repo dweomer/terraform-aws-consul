@@ -1,25 +1,25 @@
 output "vpc_id" {
-  value = "${module.network.vpc_id}"
+  value = "${module.vpc.vpc_id}"
 }
 
 output "vpc_cidr_block" {
-  value = "${module.network.vpc_cidr_block}"
+  value = "${module.vpc.vpc_cidr_block}"
 }
 
 output "private_subnet_ids" {
-  value = ["${module.network.private_subnets}"]
+  value = ["${module.vpc.private_subnets}"]
 }
 
 output "private_subnet_cidr_blocks" {
-  value = ["${data.null_data_source.subnet_private.*.outputs.cidr}"]
+  value = ["${module.net_private.cidr_blocks}"]
 }
 
 output "public_subnet_ids" {
-  value = ["${module.network.public_subnets}"]
+  value = ["${module.vpc.public_subnets}"]
 }
 
 output "public_subnet_cidr_blocks" {
-  value = ["${data.null_data_source.subnet_public.*.outputs.cidr}"]
+  value = ["${module.net_public.cidr_blocks}"]
 }
 
 output "instance_ami" {

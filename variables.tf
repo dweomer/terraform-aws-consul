@@ -1,5 +1,5 @@
-variable "consul_bridge_addr" {
-  default = "169.254.127.127"
+variable "consul_bridge_cidr" {
+  default = "169.254.127.127/32"
 }
 
 variable "consul_bridge_host" {
@@ -14,11 +14,11 @@ variable "consul_datacenter" {
   default = ""
 }
 
-variable "CONSUL_LAN_DISCOVERY_key" {
+variable "consul_lan_discovery_key" {
   default = ""
 }
 
-variable "CONSUL_LAN_DISCOVERY_value" {
+variable "consul_lan_discovery_value" {
   default = ""
 }
 
@@ -50,6 +50,14 @@ variable "consul_version" {
   default = "0.9.3"
 }
 
+variable "docker_bridge_cidr" {
+  default = "172.16.0.1/16"
+}
+
+variable "docker_version" {
+  default = "17.06.1-ce"
+}
+
 variable "domain" {
   description = "Root Domain Name"
   default     = "example.com"
@@ -78,34 +86,7 @@ variable "stage" {
   default     = "TEST"
 }
 
-variable "subnet_bits" {
-  description = "Subnet Prefix Bits"
-  default     = 6
-}
-
-variable "supernet" {
-  description = "CIDR Block"
+variable "supernet_cidr" {
+  description = "VPC CIDR Block"
   default     = "172.31.0.0/16"
-}
-
-variable "zones" {
-  type        = "map"
-  description = "Availability Zone Suffixes"
-
-  default = {
-    ap-northeast-1 = ["a", "b", "c"]
-    ap-northeast-2 = ["a", "c"]
-    ap-south-1     = ["a", "b"]
-    ap-southeast-1 = ["a", "b"]
-    ap-southeast-2 = ["a", "b", "c"]
-    ca-central-1   = ["a", "b"]
-    eu-central-1   = ["a", "b", "c"]
-    eu-west-1      = ["a", "b", "c"]
-    eu-west-2      = ["a", "b"]
-    sa-east-1      = ["a", "b", "c"]
-    us-east-1      = ["a", "b", "c", "d", "e", "f"]
-    us-east-2      = ["a", "b", "c"]
-    us-west-1      = ["a", "b", "c"]
-    us-west-2      = ["a", "b", "c"]
-  }
 }

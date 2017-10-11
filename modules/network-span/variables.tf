@@ -10,7 +10,7 @@ variable "subnet_netnum_offset" {
   description = "cidrsubnet netnum offset"
 }
 
-variable "supernet" {
+variable "supernet_cidr" {
   description = "VPC CIDR (aka Supernet)"
 }
 

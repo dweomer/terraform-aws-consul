@@ -13,12 +13,12 @@ data "aws_iam_policy_document" "assume" {
 
 resource "aws_iam_role" "module" {
   assume_role_policy = "${data.aws_iam_policy_document.assume.json}"
-  name_prefix        = "${var.name_prefix}"
+  name_prefix        = "${var.role_name_prefix}"
 }
 
 resource "aws_iam_instance_profile" "module" {
-  name = "${aws_iam_role.module.name}"
-  role = "${aws_iam_role.module.name}"
+  name_prefix = "${var.role_name_prefix}"
+  role        = "${aws_iam_role.module.name}"
 }
 
 data "aws_iam_policy_document" "discover" {

@@ -1,5 +1,5 @@
 output "cidr_blocks" {
-  value = ["${data.null_data_source.network.*.outputs.cidr}"]
+  value = ["${data.null_data_source.span.*.outputs.cidr}"]
 }
 
 output "availability_zones" {

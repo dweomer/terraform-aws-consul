@@ -38,16 +38,10 @@ variable "desired_capacity" {
   description = "The number of Amazon EC2 instances that should be running in the group"
 }
 
-variable "tags_for_group_only" {
-  type        = "map"
-  description = "Tags to apply to the ASG/LC only"
-  default     = {}
-}
-
-variable "tags_for_group_and_instances" {
-  type        = "map"
-  description = "Tags to apply to the ASG/LC and instances"
-  default     = {}
+variable "tags" {
+  type        = "list"
+  description = "ASG Tags"
+  default     = []
 }
 
 variable "root_block_device" {

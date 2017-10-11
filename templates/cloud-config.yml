@@ -1,8 +1,8 @@
 #cloud-config
 write_files:
-  - path: /etc/consul.d/common.json
-    owner: "root:root"
-    permissions: "0644"
+  - path: /opt/etc/consul/common.json
+    owner: "100:1000"
+    permissions: "0600"
     content: |
       {
           "datacenter" : "${CONSUL_DATACENTER}",
@@ -11,15 +11,17 @@ write_files:
       }
   - path: /etc/docker/daemon.json
     owner: "root:root"
-    permissions: "0644"
+    permissions: "0600"
     content: |
       {
-          "bip" : "172.16.0.1/16"
+          "bip" : "${DOCKER_BRIDGE_CIDR}"
       }
 
 rancher:
+  docker:
+    engine: docker-${DOCKER_VERSION}
   environment:
-    CONSUL_BRIDGE_ADDR: ${CONSUL_BRIDGE_ADDR}
+    CONSUL_BRIDGE_CIDR: ${CONSUL_BRIDGE_CIDR}
     CONSUL_BRIDGE_HOST: ${CONSUL_BRIDGE_HOST}
     CONSUL_BRIDGE_NAME: ${CONSUL_BRIDGE_NAME}
     CONSUL_DATACENTER: ${CONSUL_DATACENTER}
@@ -30,10 +32,9 @@ rancher:
   network:
     interfaces:
       ${CONSUL_BRIDGE_NAME}:
+        address: ${CONSUL_BRIDGE_CIDR}
         bridge: true
         dhcp: false
-    post_cmds:
-      - ip addr add ${CONSUL_BRIDGE_ADDR}/32 dev ${CONSUL_BRIDGE_NAME}
   services:
     consul:
       environment:
@@ -42,9 +43,15 @@ rancher:
       command: agent -client 0.0.0.0
       container_name: ${CONSUL_BRIDGE_HOST}
       image: consul:${CONSUL_VERSION}
+      labels:
+        io.rancher.os.after: console
+        io.rancher.os.scope: system
       net: host
+      pid: host
       restart: unless-stopped
+      volumes_from:
+       - all-volumes
       volumes:
-        - "/etc/consul.d:/consul/config:rw"
+        - "/opt/etc/consul:/consul/config:rw"
         - "/var/lib/consul:/consul/data:rw"
-        - "/var/run/docker.sock:/var/run/docker.sock:rw"
+        - "/var/run:/var/run:rw"

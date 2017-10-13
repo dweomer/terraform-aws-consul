@@ -38,8 +38,8 @@ module "tag_stage" {
   propagate_at_launch = true
 }
 
-module "app_env" {
-  source    = "./modules/application-env"
+module "app_labels" {
+  source    = "./modules/application-labels"
   name_tags = ["${list(module.tag_stack.map, module.tag_stage.map)}"]
 }
 
@@ -50,8 +50,8 @@ locals {
     CONSUL_BRIDGE_NAME         = "${var.consul_bridge_name}"
     CONSUL_DATACENTER          = "${coalesce(var.consul_datacenter, format("aws-%s", var.region))}"
     CONSUL_DOMAIN              = "${format("%s.%s.%s", lower(var.stage), lower(var.stack), var.domain)}"
-    CONSUL_LAN_DISCOVERY_KEY   = "${module.tag_discovery_lan.key}"
-    CONSUL_LAN_DISCOVERY_VALUE = "${module.tag_discovery_lan.value}"
+    CONSUL_DISCOVERY_LAN_KEY   = "${module.tag_consul_discovery_lan.key}"
+    CONSUL_DISCOVERY_LAN_VALUE = "${module.tag_consul_discovery_lan.value}"
     CONSUL_VERSION             = "${var.consul_version}"
     DOCKER_BRIDGE_CIDR         = "${var.docker_bridge_cidr}"
     DOCKER_VERSION             = "${var.docker_version}"
@@ -62,8 +62,8 @@ module "supernet" {
   source = "terraform-aws-modules/vpc/aws"
 
   cidr = "${var.supernet_cidr}"
-  name = "${lower(module.app_env.name)}"
-  tags = "${module.app_env.simple_tags}"
+  name = "${lower(module.app_labels.name)}"
+  tags = "${module.app_labels.simple_tags}"
   azs  = ["${module.net_private.availability_zones}"]
 
   private_subnets = ["${module.net_private.cidr_blocks}"]
@@ -80,28 +80,28 @@ module "supernet" {
 
 resource "aws_default_security_group" "supernet" {
   vpc_id = "${module.supernet.vpc_id}"
-  tags = "${merge(module.app_env.simple_tags, map("Name", format("%s-default", lower(module.app_env.name))))}"
+  tags   = "${merge(module.app_labels.simple_tags, map("Name", format("%s-default", lower(module.app_labels.name))))}"
 
   ingress {
     from_port = 0
-    protocol = "-1"
-    to_port = 0
-    self = true
+    protocol  = "-1"
+    to_port   = 0
+    self      = true
   }
 
   egress {
-    from_port = 0
-    protocol = "-1"
-    to_port = 0
+    from_port   = 0
+    protocol    = "-1"
+    to_port     = 0
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-module "tag_discovery_lan" {
+module "tag_consul_discovery_lan" {
   source = "./modules/application-tag"
 
-  key                 = "${coalesce(var.consul_lan_discovery_key, "Shard")}"
-  value               = "${coalesce(var.consul_lan_discovery_value, format("%s-%s", lower(module.app_env.name), lower(module.supernet.vpc_id)))}"
+  key                 = "${coalesce(var.consul_discovery_lan_key, "Shard")}"
+  value               = "${coalesce(var.consul_discovery_lan_value, format("%s-consul-%s", lower(module.app_labels.name), sha1(module.supernet.vpc_id)))}"
   propagate_at_launch = true
 }
 
@@ -122,20 +122,20 @@ data "aws_ami" "rancher_os" {
 }
 
 module "instance_profile" {
-  source = "./modules/discovery-instance-profile"
+  source = "./modules/instance-profile"
 
-  role_name_prefix = "${lower(module.app_env.name)}-consul-"
+  role_name_prefix = "${lower(module.app_labels.name)}-consul-"
 }
 
 resource "aws_key_pair" "consul" {
-  key_name_prefix = "${lower(module.app_env.name)}-consul-"
+  key_name_prefix = "${lower(module.app_labels.name)}-consul-"
   public_key      = "${file("~/.ssh/id_rsa.pub")}"
 }
 
 module "servers" {
   source = "./modules/autoscaling-group"
 
-  name = "${lower(module.app_env.name)}"
+  name = "${lower(module.app_labels.name)}"
   role = "server"
 
   # Launch Configuration
@@ -164,13 +164,13 @@ module "servers" {
   maximum_capacity    = "${var.consul_max_servers}"
   desired_capacity    = "${coalesce(var.consul_desired_servers,var.consul_min_servers)}"
 
-  tags = ["${list(module.tag_discovery_lan.map, module.tag_stack.map, module.tag_stage.map)}"]
+  tags = ["${list(module.tag_stack.map, module.tag_stage.map, module.tag_consul_discovery_lan.map)}"]
 }
 
 module "clients" {
   source = "./modules/autoscaling-group"
 
-  name = "${lower(module.app_env.name)}"
+  name = "${lower(module.app_labels.name)}"
   role = "client"
 
   # Launch Configuration
@@ -199,5 +199,5 @@ module "clients" {
   maximum_capacity    = "${var.consul_max_clients}"
   desired_capacity    = "${coalesce(var.consul_desired_clients,var.consul_min_clients)}"
 
-  tags = ["${list(module.tag_discovery_lan.map, module.tag_stack.map, module.tag_stage.map)}"]
+  tags = ["${list(module.tag_stack.map, module.tag_stage.map, module.tag_consul_discovery_lan.map)}"]
 }

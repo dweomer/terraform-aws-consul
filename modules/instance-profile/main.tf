@@ -1,4 +1,4 @@
-data "aws_iam_policy_document" "assume" {
+data "aws_iam_policy_document" "assume_ec2" {
   statement {
     actions = ["sts:AssumeRole"]
 
@@ -12,7 +12,8 @@ data "aws_iam_policy_document" "assume" {
 }
 
 resource "aws_iam_role" "module" {
-  assume_role_policy = "${data.aws_iam_policy_document.assume.json}"
+  description        = "Consul Cluster Auto-Discovery"
+  assume_role_policy = "${data.aws_iam_policy_document.assume_ec2.json}"
   name_prefix        = "${var.role_name_prefix}"
 }
 
@@ -21,7 +22,7 @@ resource "aws_iam_instance_profile" "module" {
   role        = "${aws_iam_role.module.name}"
 }
 
-data "aws_iam_policy_document" "discover" {
+data "aws_iam_policy_document" "auto_discover_cluster" {
   statement {
     actions = [
       "ec2:DescribeInstances",
@@ -37,8 +38,15 @@ data "aws_iam_policy_document" "discover" {
   }
 }
 
-resource "aws_iam_role_policy" "discover" {
+resource "aws_iam_role_policy" "auto_discover_cluster" {
   name   = "auto-discover-cluster"
   role   = "${aws_iam_role.module.name}"
-  policy = "${data.aws_iam_policy_document.discover.json}"
+  policy = "${data.aws_iam_policy_document.auto_discover_cluster.json}"
+}
+
+resource "aws_iam_role_policy" "instance_profile_inline" {
+  count  = "${length(var.role_inline_policies)}"
+  name   = "${element(keys(var.role_inline_policies), count.index)}"
+  role   = "${aws_iam_role.module.name}"
+  policy = "${element(values(var.role_inline_policies), count.index)}"
 }

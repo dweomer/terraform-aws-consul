@@ -1,15 +1,15 @@
 output "map" {
-  value = "${local.m}"
+  value = "${local.tag}"
 }
 
 output "kvp" {
-  value = "${map(local.m["key"], local.m["value"])}"
+  value = "${map(local.tag["key"], local.tag["value"])}"
 }
 
 output "key" {
-  value = "${local.m["key"]}"
+  value = "${local.tag["key"]}"
 }
 
 output "value" {
-  value = "${local.m["value"]}"
+  value = "${local.tag["value"]}"
 }

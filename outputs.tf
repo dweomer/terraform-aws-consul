@@ -1,7 +1,15 @@
-output "discovery_lan" {
+output "consul_datacenter" {
+  value = "${local.env["CONSUL_DATACENTER"]}"
+}
+
+output "consul_domain" {
+  value = "${local.env["CONSUL_DOMAIN"]}"
+}
+
+output "consul_lan_discovery" {
   value = {
-    key = "${module.tag_consul_discovery_lan.key}"
-    value = "${module.tag_consul_discovery_lan.value}"
+    key = "${module.tag_consul_lan_discovery.key}"
+    value = "${module.tag_consul_lan_discovery.value}"
   }
 }
 
@@ -23,6 +31,18 @@ output "instance_profile_name" {
 
 output "instance_profile_role" {
   value = "${module.instance_profile.role}"
+}
+
+output "nat_eip_id" {
+  value = "${element(module.supernet.nat_ids,0)}"
+}
+
+output "nat_eip_public_ip" {
+  value = "${element(module.supernet.nat_public_ips,0)}"
+}
+
+output "nat_gateway_id" {
+  value = "${element(module.supernet.natgw_ids,0)}"
 }
 
 output "private_subnet_cidr_blocks" {

@@ -14,11 +14,11 @@ variable "consul_datacenter" {
   default = ""
 }
 
-variable "consul_discovery_lan_key" {
+variable "consul_lan_discovery_key" {
   default = ""
 }
 
-variable "consul_discovery_lan_value" {
+variable "consul_lan_discovery_value" {
   default = ""
 }
 

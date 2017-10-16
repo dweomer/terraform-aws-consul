@@ -1,21 +1,31 @@
 #cloud-config
 write_files:
-  - path: /opt/etc/consul/common.json
+  - path: /opt/consul/config/common.json
     owner: "100:1000"
     permissions: "0600"
     content: |
       {
           "datacenter" : "${CONSUL_DATACENTER}",
           "domain"     : "${CONSUL_DOMAIN}.",
-          "retry_join" : [ "provider=aws tag_key=${CONSUL_DISCOVERY_LAN_KEY} tag_value=${CONSUL_DISCOVERY_LAN_VALUE}" ]
+          "recursors"  : ${CONSUL_RECURSORS},
+          "retry_join" : [ "provider=aws tag_key=${CONSUL_LAN_DISCOVERY_KEY} tag_value=${CONSUL_LAN_DISCOVERY_VALUE}" ]
       }
   - path: /etc/docker/daemon.json
     owner: "root:root"
     permissions: "0600"
     content: |
       {
-          "bip" : "${DOCKER_BRIDGE_CIDR}"
+          "bip"        : "${DOCKER_BRIDGE_CIDR}",
+          "dns"        : [ "${CONSUL_BRIDGE_ADDR}" ],
+          "dns-search" : [ "service.${CONSUL_DOMAIN}", "node.${CONSUL_DOMAIN}" ],
+          "labels"     : ${DOCKER_ENGINE_LABELS}
       }
+  - path: /etc/rc.local
+    permissions: "0755"
+    owner: root
+    content: |
+      #!/bin/bash
+      wait-for-docker
 
 rancher:
   docker:
@@ -26,8 +36,8 @@ rancher:
     CONSUL_BRIDGE_NAME: ${CONSUL_BRIDGE_NAME}
     CONSUL_DATACENTER: ${CONSUL_DATACENTER}
     CONSUL_DOMAIN: ${CONSUL_DOMAIN}
-    CONSUL_DISCOVERY_LAN_KEY: ${CONSUL_DISCOVERY_LAN_KEY}
-    CONSUL_DISCOVERY_LAN_VALUE: ${CONSUL_DISCOVERY_LAN_VALUE}
+    CONSUL_LAN_DISCOVERY_KEY: ${CONSUL_LAN_DISCOVERY_KEY}
+    CONSUL_LAN_DISCOVERY_VALUE: ${CONSUL_LAN_DISCOVERY_VALUE}
     CONSUL_VERSION: ${CONSUL_VERSION}
   network:
     interfaces:
@@ -41,17 +51,76 @@ rancher:
         CONSUL_BIND_INTERFACE: eth0
         CONSUL_LOCAL_CONFIG: '${CONSUL_LOCAL_CONFIG}'
       command: agent -client 0.0.0.0
-      container_name: ${CONSUL_BRIDGE_HOST}
       image: consul:${CONSUL_VERSION}
       labels:
-        io.rancher.os.after: console
         io.rancher.os.scope: system
       net: host
-      pid: host
       restart: unless-stopped
       volumes_from:
-       - all-volumes
+        - system-volumes
       volumes:
-        - "/opt/etc/consul:/consul/config:rw"
+        - "/opt/consul/config:/consul/config:rw"
         - "/var/lib/consul:/consul/data:rw"
-        - "/var/run:/var/run:rw"
+    dnsmasq:
+      command: --no-resolv --server /${CONSUL_DOMAIN}/${CONSUL_BRIDGE_ADDR}#8600 --server 8.8.8.8 --server 8.8.4.4
+      image: andyshinn/dnsmasq:2.78
+      cap_add:
+        - NET_ADMIN
+      labels:
+        io.rancher.os.after: consul
+        io.rancher.os.scope: system
+      net: host
+      uts: host
+      restart: unless-stopped
+      volumes_from:
+        - system-volumes
+    metadata:
+      image: rancher/os-amazonmetadata:v${RANCHER_OS_VERSION}
+      command: -m
+      environment:
+        - AWS_*
+      pid: host
+      ipc: host
+      net: host
+      uts: host
+      privileged: true
+      labels:
+        io.rancher.os.after: network
+        io.rancher.os.before: console
+        io.rancher.os.detach: "false"
+        io.rancher.os.scope: system
+        io.rancher.os.reloadconfig: "true"
+      volumes:
+        - /usr/bin/ros:/bin/ros:ro
+        - /var/lib/rancher/conf:/var/lib/rancher/conf:rw
+    hostname:
+      command: sh -c 'hostname $AWS_INSTANCE_ID'
+      image: alpine:3.6
+      environment:
+        - AWS_INSTANCE_ID
+      labels:
+        io.rancher.os.after: metadata
+        io.rancher.os.before: consul
+        io.rancher.os.detach: "false"
+        io.rancher.os.scope: system
+      cap_add:
+        - SYS_ADMIN
+      privileged: true
+      net: host
+      uts: host
+      volumes_from:
+        - system-volumes
+    resolvconf:
+      command: sh -c 'echo nameserver ${CONSUL_BRIDGE_ADDR} > /etc/resolv.conf && echo search service.${CONSUL_DOMAIN} node.${CONSUL_DOMAIN} >> /etc/resolv.conf'
+      image: alpine:3.6
+      labels:
+        io.rancher.os.after: dnsmasq
+        io.rancher.os.detach: "false"
+        io.rancher.os.scope: system
+      cap_add:
+        - SYS_ADMIN
+      privileged: true
+      net: host
+      uts: host
+      volumes_from:
+        - system-volumes

@@ -8,7 +8,7 @@ module "autoscaling" {
   source = "terraform-aws-modules/autoscaling/aws"
 
   # Launch Configuration
-  lc_name              = "${format("%s-%s", var.name, var.role)}"
+  lc_name              = "${var.name}"
   image_id             = "${var.image_id}"
   instance_type        = "${var.instance_type}"
   security_groups      = ["${var.security_groups}"]
@@ -20,7 +20,7 @@ module "autoscaling" {
   root_block_device = "${var.root_block_device}"
 
   # Auto-Scaling Group
-  asg_name            = "${format("%s-%s", var.name, var.role)}"
+  asg_name            = "${var.name}"
   vpc_zone_identifier = ["${var.vpc_zone_identifier}"]
   health_check_type   = "EC2"
   min_size            = "${var.minimum_capacity}"

@@ -27,6 +27,7 @@ module "tag_stack" {
 
   key                 = "Stack"
   value               = "${title(var.stack)}"
+
   propagate_at_launch = true
 }
 
@@ -35,6 +36,7 @@ module "tag_stage" {
 
   key                 = "Stage"
   value               = "${upper(var.stage)}"
+
   propagate_at_launch = true
 }
 
@@ -44,17 +46,21 @@ module "app_labels" {
 }
 
 locals {
-  env_vars = {
+  env = {
+    CONSUL_BRIDGE_ADDR         = "${cidrhost(var.consul_bridge_cidr,0)}"
     CONSUL_BRIDGE_CIDR         = "${var.consul_bridge_cidr}"
     CONSUL_BRIDGE_HOST         = "${var.consul_bridge_host}"
     CONSUL_BRIDGE_NAME         = "${var.consul_bridge_name}"
     CONSUL_DATACENTER          = "${coalesce(var.consul_datacenter, format("aws-%s", var.region))}"
-    CONSUL_DOMAIN              = "${format("%s.%s.%s", lower(var.stage), lower(var.stack), var.domain)}"
-    CONSUL_DISCOVERY_LAN_KEY   = "${module.tag_consul_discovery_lan.key}"
-    CONSUL_DISCOVERY_LAN_VALUE = "${module.tag_consul_discovery_lan.value}"
+#    CONSUL_DOMAIN              = "${format("%s.%s.%s", lower(var.stage), lower(var.stack), var.domain)}"
+    CONSUL_DOMAIN              = "consul"
+    CONSUL_LAN_DISCOVERY_KEY   = "${module.tag_consul_lan_discovery.key}"
+    CONSUL_LAN_DISCOVERY_VALUE = "${module.tag_consul_lan_discovery.value}"
+    CONSUL_RECURSORS           = "${jsonencode(list(cidrhost(var.supernet_cidr,2)))}"
     CONSUL_VERSION             = "${var.consul_version}"
     DOCKER_BRIDGE_CIDR         = "${var.docker_bridge_cidr}"
     DOCKER_VERSION             = "${var.docker_version}"
+    RANCHER_OS_VERSION         = "1.1.0"
   }
 }
 
@@ -87,6 +93,7 @@ resource "aws_default_security_group" "supernet" {
     protocol  = "-1"
     to_port   = 0
     self      = true
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -97,12 +104,23 @@ resource "aws_default_security_group" "supernet" {
   }
 }
 
-module "tag_consul_discovery_lan" {
+module "tag_consul_lan_discovery" {
   source = "./modules/application-tag"
 
-  key                 = "${coalesce(var.consul_discovery_lan_key, "Shard")}"
-  value               = "${coalesce(var.consul_discovery_lan_value, format("%s-consul-%s", lower(module.app_labels.name), sha1(module.supernet.vpc_id)))}"
+  key                 = "${coalesce(var.consul_lan_discovery_key, "Shard")}"
+  value               = "${coalesce(var.consul_lan_discovery_value, format("%s-consul-%s", lower(module.app_labels.name), lower(module.supernet.vpc_id)))}"
+
   propagate_at_launch = true
+}
+
+# passing this to the servers module ought to prevent the group from coming up before the network is fully routed
+module "tag_nat_gateway" {
+  source = "./modules/application-tag"
+
+  key                 = "${element(module.supernet.natgw_ids, 0)}"
+  value               = "${element(module.supernet.nat_ids, 0)}"
+
+  propagate_at_launch = false
 }
 
 data "aws_ami" "rancher_os" {
@@ -110,7 +128,7 @@ data "aws_ami" "rancher_os" {
 
   filter {
     name   = "name"
-    values = ["rancheros-*-hvm-*"]
+    values = ["rancheros-v${local.env["RANCHER_OS_VERSION"]}-hvm-*"]
   }
 
   filter {
@@ -135,8 +153,7 @@ resource "aws_key_pair" "consul" {
 module "servers" {
   source = "./modules/autoscaling-group"
 
-  name = "${lower(module.app_labels.name)}"
-  role = "server"
+  name = "${lower(module.app_labels.name)}-consul-server"
 
   # Launch Configuration
   ssh_key_name         = "${aws_key_pair.consul.key_name}"
@@ -148,8 +165,12 @@ module "servers" {
   user_data_template = "${file("templates/cloud-config.yml")}"
 
   user_data_variables = "${merge(
-    local.env_vars,
-    map("CONSUL_LOCAL_CONFIG", format("{%q : true, %q : true, %q : %s}", "server", "ui", "bootstrap_expect", var.consul_min_servers))
+    local.env,
+    map("CONSUL_LOCAL_CONFIG", format("{%q : true, %q : true, %q : %s}", "server", "ui", "bootstrap_expect", var.consul_min_servers)),
+    map("DOCKER_ENGINE_LABELS", jsonencode(list(
+        format("consul.role=%s", "server"),
+        format("docker.role=%s", "engine")
+    )))
   )}"
 
   root_block_device = [{
@@ -164,14 +185,13 @@ module "servers" {
   maximum_capacity    = "${var.consul_max_servers}"
   desired_capacity    = "${coalesce(var.consul_desired_servers,var.consul_min_servers)}"
 
-  tags = ["${list(module.tag_stack.map, module.tag_stage.map, module.tag_consul_discovery_lan.map)}"]
+  tags = ["${list(module.tag_stack.map, module.tag_stage.map, module.tag_consul_lan_discovery.map, module.tag_nat_gateway.map)}"]
 }
 
 module "clients" {
   source = "./modules/autoscaling-group"
 
-  name = "${lower(module.app_labels.name)}"
-  role = "client"
+  name = "${lower(module.app_labels.name)}-consul-client"
 
   # Launch Configuration
   ssh_key_name         = "${aws_key_pair.consul.key_name}"
@@ -183,8 +203,12 @@ module "clients" {
   user_data_template = "${file("templates/cloud-config.yml")}"
 
   user_data_variables = "${merge(
-    local.env_vars,
-    map("CONSUL_LOCAL_CONFIG", format("{%q : false, %q : true}", "server", "ui"))
+    local.env,
+    map("CONSUL_LOCAL_CONFIG", format("{%q : false, %q : true}", "server", "ui")),
+    map("DOCKER_ENGINE_LABELS", jsonencode(list(
+        format("consul.role=%s", "client"),
+        format("docker.role=%s", "engine")
+    )))
   )}"
 
   root_block_device = [{
@@ -199,5 +223,5 @@ module "clients" {
   maximum_capacity    = "${var.consul_max_clients}"
   desired_capacity    = "${coalesce(var.consul_desired_clients,var.consul_min_clients)}"
 
-  tags = ["${list(module.tag_stack.map, module.tag_stage.map, module.tag_consul_discovery_lan.map)}"]
+  tags = ["${list(module.tag_stack.map, module.tag_stage.map, module.tag_consul_lan_discovery.map)}"]
 }

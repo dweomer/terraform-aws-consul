@@ -3,11 +3,6 @@ variable "name" {
   description = "The name of the group"
 }
 
-variable "role" {
-  type        = "string"
-  description = "The role of the group (`server` or `client`)"
-}
-
 variable "iam_instance_profile" {
   type        = "string"
   description = ""

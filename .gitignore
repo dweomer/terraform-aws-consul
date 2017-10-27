@@ -1,4 +1,5 @@
 *.tfstate*
 *.tfplan
 .terraform/
+*override.tf
 .idea/

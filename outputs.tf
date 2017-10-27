@@ -8,7 +8,7 @@ output "consul_domain" {
 
 output "consul_lan_discovery" {
   value = {
-    key = "${module.tag_consul_lan_discovery.key}"
+    key   = "${module.tag_consul_lan_discovery.key}"
     value = "${module.tag_consul_lan_discovery.value}"
   }
 }

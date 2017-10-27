@@ -1,15 +1,33 @@
 #cloud-config
 write_files:
-  - path: /opt/consul/config/common.json
+  - path: /opt/bin/consul
+    owner: "root:root"
+    permissions: "0755"
+    content: |
+      #!/bin/sh
+
+      system-docker exec -it consul consul $@
+
+      ### /opt/bin/consul
+  - path: /opt/etc/consul/common.json
     owner: "100:1000"
     permissions: "0600"
     content: |
       {
           "datacenter" : "${CONSUL_DATACENTER}",
           "domain"     : "${CONSUL_DOMAIN}.",
-          "recursors"  : ${CONSUL_RECURSORS},
+          "protocol"   : 3,
           "retry_join" : [ "provider=aws tag_key=${CONSUL_LAN_DISCOVERY_KEY} tag_value=${CONSUL_LAN_DISCOVERY_VALUE}" ]
       }
+  - path: /opt/libexec/consul/common
+    owner: "root:root"
+    permissions: "0755"
+    content: |
+      #!/bin/sh
+
+      export PATH="/opt/bin:$PATH"
+
+      ### /opt/libexec/consul/common
   - path: /etc/docker/daemon.json
     owner: "root:root"
     permissions: "0600"
@@ -17,19 +35,24 @@ write_files:
       {
           "bip"        : "${DOCKER_BRIDGE_CIDR}",
           "dns"        : [ "${CONSUL_BRIDGE_ADDR}" ],
-          "dns-search" : [ "service.${CONSUL_DOMAIN}", "node.${CONSUL_DOMAIN}" ],
+          "dns-search" : [ "service.${CONSUL_DOMAIN}", "node.${CONSUL_DOMAIN}", "${CONSUL_DOMAIN}" ],
           "labels"     : ${DOCKER_ENGINE_LABELS}
       }
-  - path: /etc/rc.local
+  - path: /etc/profile.d/consul.sh
+    owner: "root:root"
     permissions: "0755"
-    owner: root
     content: |
-      #!/bin/bash
-      wait-for-docker
+      #!/bin/sh
+
+      . /opt/libexec/consul/common
+
+      ### /etc/profile.d/consul.sh
 
 rancher:
+
   docker:
     engine: docker-${DOCKER_VERSION}
+
   environment:
     CONSUL_BRIDGE_CIDR: ${CONSUL_BRIDGE_CIDR}
     CONSUL_BRIDGE_HOST: ${CONSUL_BRIDGE_HOST}
@@ -39,41 +62,51 @@ rancher:
     CONSUL_LAN_DISCOVERY_KEY: ${CONSUL_LAN_DISCOVERY_KEY}
     CONSUL_LAN_DISCOVERY_VALUE: ${CONSUL_LAN_DISCOVERY_VALUE}
     CONSUL_VERSION: ${CONSUL_VERSION}
+
   network:
+    dns:
+      nameservers:
+        - ${STACK_NAMESERVER}
     interfaces:
       ${CONSUL_BRIDGE_NAME}:
         address: ${CONSUL_BRIDGE_CIDR}
         bridge: true
         dhcp: false
+
   services:
+
     consul:
+      command: agent -client 0.0.0.0
       environment:
         CONSUL_BIND_INTERFACE: eth0
         CONSUL_LOCAL_CONFIG: '${CONSUL_LOCAL_CONFIG}'
-      command: agent -client 0.0.0.0
       image: consul:${CONSUL_VERSION}
       labels:
         io.rancher.os.scope: system
       net: host
       restart: unless-stopped
+      volumes:
+        - "/opt/etc/consul:/consul/config:rw"
+        - "/var/lib/consul:/consul/data:rw"
       volumes_from:
         - system-volumes
-      volumes:
-        - "/opt/consul/config:/consul/config:rw"
-        - "/var/lib/consul:/consul/data:rw"
+
     dnsmasq:
-      command: --no-resolv --server /${CONSUL_DOMAIN}/${CONSUL_BRIDGE_ADDR}#8600 --server 8.8.8.8 --server 8.8.4.4
+      command:
+        - "--log-facility=/dev/stdout"
+        - "--server=/${CONSUL_DOMAIN}/${CONSUL_BRIDGE_ADDR}#8600"
       image: andyshinn/dnsmasq:2.78
-      cap_add:
-        - NET_ADMIN
       labels:
         io.rancher.os.after: consul
         io.rancher.os.scope: system
+      cap_add:
+        - NET_ADMIN
       net: host
       uts: host
       restart: unless-stopped
       volumes_from:
         - system-volumes
+
     metadata:
       image: rancher/os-amazonmetadata:v${RANCHER_OS_VERSION}
       command: -m
@@ -93,6 +126,7 @@ rancher:
       volumes:
         - /usr/bin/ros:/bin/ros:ro
         - /var/lib/rancher/conf:/var/lib/rancher/conf:rw
+
     hostname:
       command: sh -c 'hostname $AWS_INSTANCE_ID'
       image: alpine:3.6
@@ -110,17 +144,14 @@ rancher:
       uts: host
       volumes_from:
         - system-volumes
-    resolvconf:
-      command: sh -c 'echo nameserver ${CONSUL_BRIDGE_ADDR} > /etc/resolv.conf && echo search service.${CONSUL_DOMAIN} node.${CONSUL_DOMAIN} >> /etc/resolv.conf'
-      image: alpine:3.6
+
+    sweomer:
+      command: ${SWARM_ROLE} --swarm-advertise-addr eth0:2377
+      image: dweomer/sweomer
       labels:
-        io.rancher.os.after: dnsmasq
-        io.rancher.os.detach: "false"
+        io.rancher.os.after: docker
         io.rancher.os.scope: system
-      cap_add:
-        - SYS_ADMIN
-      privileged: true
       net: host
-      uts: host
+      restart: on-failure
       volumes_from:
         - system-volumes

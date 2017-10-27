@@ -14,6 +14,11 @@ variable "consul_datacenter" {
   default = ""
 }
 
+variable "consul_ingress_cidr" {
+  type    = "list"
+  default = []
+}
+
 variable "consul_lan_discovery_key" {
   default = ""
 }
@@ -89,4 +94,9 @@ variable "stage" {
 variable "supernet_cidr" {
   description = "VPC CIDR Block"
   default     = "172.31.0.0/16"
+}
+
+variable "rancher_os_version" {
+  description = "RancherOS Version"
+  default     = "1.1.0"
 }
